@@ -1,0 +1,197 @@
+---
+title: "Project"
+author: ""
+date: "2024-05-18"
+output: html_document
+---
+# Contributors
+Write your names and IDs
+
+# Objective
+Write a sentence describing the objective
+
+# Imports
+```{r, message=F}
+# setwd("")
+
+# install.packages("BiocManager")
+# BiocManager::install("SNPRelate")
+# BiocManager::install("GENESIS")
+# BiocManager::install("GeneNet")
+library(tidyverse)
+library(SNPRelate)
+library(GENESIS)
+library(GWASTools)
+library(qqman)
+library(RCy3)
+library(GeneNet)
+```
+
+
+# Computing Kinship
+```{r}
+  # Convert PLINK files (.ped and .map) of the Qatari dataset to GDS format
+  # TODO 1. use the function snpgdsPED2GDS from SNPRelate
+
+  # Compute the kinship matrix
+  # TODO 2. Open the GDS file using snpgdsOpen from SNPRelate (you created that file a moment ago)
+
+
+  # TODO 3. Calculate the kinship using the IBD family from SNPRelate
+  # You have a lot of functions like snpgdsIBDMLE, snpgdsIBDKing, snpgdsIBDMoM
+  # read about them and choose the appropriate one
+  # HINT: Do not forget to set kinship = T and a suitable num.threads for faster computation
+  # the kinship matrix can be obtained using result$kinship
+  
+  
+  # TODO 4. Report the number of individuals who have a kinship > threshold
+  # The kinship matrix is a symmetrical matrix, so with just some simple matrix
+  # manipulation you can get the column names of those individuals which are the samples (people)
+  # in the qatari dataset.
+  # HINT: You may want to convert the matrix to a data.frame but keep the matrix since you will
+  # need it in the upcoming tasks
+```
+
+# mQTLs with Mixed Models
+```{r}
+  # TODO 1. Perform PCA using PLINK and read the .eigenvec using read.table
+  
+  # TODO 2. Read the metabolites from the supplied file using read.csv
+
+  ## PAY ATTENTION ===> NEXT PART IS DIFFICULT AND LONG
+  # TODO 3. We need to compute mQTLs using Mixed Models
+  # In simple words, we want to perform a regression relation where Metabolitej ~ SNPi + PC1 + PC2 + PC3 + Kinship_matrix
+  # The usage of mixed models is to justify the usage of a combination of matrix and vectors
+  # which is this part PC1 + PC2 + PC3 + Kinship_matrix
+  
+  # If you notice we will need to compute J metabolite x I SNPs just we have JxI models
+  
+  ##### First Problem #####
+  # We cannot compute Metabolitej ~ SNPi + PC1 + PC2 + PC3 + Kinship_matrix this directly
+  # But we can correct Metabolitej for PC1 + PC2 + PC3 + Kinship_matrix first then using these
+  # corrected metabolites we can compute Corrected_Metabolitej ~ SNPi
+  
+  # We will start with J metabolites and end with J corrected metabolites
+  
+  # TODO 3a. Create a loop over all metabolites
+    # Create a frame containing the metabolitej, PC1, PC2, and PC3
+    # call the function fitNullModel from GENESIS
+    # you will need to pass:
+      # - the dataframe
+      # - outcome attribute column name
+      # - covars attributes column names
+      # - cov.mat which will be the kinship matrix in its original matrix form (I told you so)
+      # - family as gaussian
+
+    # You should save the output results as they will become the corrected metabolites
+    
+    # OPTIONAL: You can calculate the heritability here or in the upcoming section
+    
+  
+  ##### Second Problem #####
+  # Dealing with file locks is not easy in R. We will need to reopend the GDS file again but this time
+  # using a different function which is GdsGenotypeReader from GWASTools.
+  # Be sure to close the previous file pointer using snpgdsClose
+  
+  # TODO Read the GDS file again
+  
+  # We will now start to compute our JxI models by fitting Corrected_Metabolitej ~ SNPi
+  # You would assume we would create a nested loop but that would be a wrong assumption as
+  # we can use some magic to make a single loop
+
+  # TODO 3b. Create a loop over all corrected metabolites
+    # We will create a frame using a special function ScanAnnotationDataFrame from GWASTools
+    # scanAnnot = ScanAnnotationDataFrame(...takes a dataframe)
+    # the argument dataframe will contain the following:
+      # - scanID: do not change its name, this takes the sampleIDs (of the qatari persons) / you can get them from the metabolites of the 
+      # - PC1, PC2, and PC3
+      # - pheno: do not change its name, this takes the metabolite expressions from the original metabolited
+
+    # We will then read the SNPs using the following 
+    # geno.data <- GenotypeData(...your GDS reader here, scanAnnot = scanAnnot)
+    
+    # We will then create an iterator over all SNPs (here is where the magic happens)
+    # iterator <- GenotypeBlockIterator(geno.data)
+
+    # At this point, you have the Corrected_Metabolitej and all SNPs
+    
+    # Perform association / fitting using assocTestSingle from GENESIS
+    # the first argument will be the iterator, the second argument will be the corrected metabolite
+
+    # TODO Report SNP-Metabolite association where p-val < 0.01 showing beta values, standard error, effect allele, degree of freedom, and p values which are direct outputs of the result of assocTestSingle
+
+    # Store these results since you will need them to plot Manhattan Plots
+  
+  ########### END of difficult part ###################
+
+
+  # SMOKE TEST
+  # By this point you should have J corrected metabolites
+  # By this point you should have J corrected metabolites - SNP association results each having I SNPs
+
+
+
+  # TODO 4. Calculate heritability
+  # Loop over the Corrected_Metabolites and call the function varCompCI from GENESIS that takes the model as it is parameter
+  # specify prop = T. Google what constitutes the heritability from the output or ask the professor
+```
+
+
+
+# Inflation Factor
+```{r}
+  # TODO Loop over the Corrected_Metabolite - SNP associations
+  # The inflation factor (lambda) is calculated as follow
+    # pvals <- assoc.results$Score.pval
+    # chi_squared <- qchisq(1 - pvals, df = 1)
+    # lambda <- median(chi_squared) / 0.456
+  
+  # Report the factor for each metabolite and the average inflation factor
+```
+
+# Manhattan Plots
+```{r}
+  # TODO Read the GDS file again
+  # Read the SNPs Info using snpgdsSNPList from SNPRelate
+  
+  # TODO Loop over the Corrected_Metabolite - SNP associations
+  # This is a simple calling of the manhattan function. 
+  # The dataframe would contain
+  #   SNP, CHR, and BP which all are found in sorted order in the SNPs Info you just read
+  #   P: Which is the Pvalues that you will get from the Corrected_Metabolite - SNP association
+  
+  # HINT: Bonferonni threshold applies
+```
+
+# Metabolic Networks
+```{r}
+
+  # TODO Download and Install cytoscape from https://cytoscape.org/download.html
+  # TODO start and open the cytoscape exe
+  # verify it is running by executing cytoscapePing
+  
+  # TODO Extract the significant pairs (edges)
+  # 1. Extract the fitted.values from the corrected metabolities (you can use sapply and data.frame)
+  # 2. Adjust the column names
+  # 3. Use the function ggm.estimate.pcor from GeneNet that calculate partial correlations This function outputs a partial correlation matrix
+  # 4. Use the function network.test.edges from GeneNet that takes the correlation matrix and outputs edges of a graph. You can specify the graph to be direct using direct = T.
+  # 5. Create the network using the proper cutoff number of nodes using extract.network from GeneNet. This function takes the edges and method.ggm = 'number' and cutoff.ggm that specifies the number of requested nodes
+  # Report the pairs from the network in a csv file
+
+
+  # TODO Plot using Cytoscape
+  # We already have the edges. You can get the nodes from the network object by using $node1 and $node2
+  # TODO YOU MUST DO
+  # You need to add names to nodes and change the graph to your custom style
+  # TODO Plot the graph using createNetworkFromDataFrames
+```
+
+# Annotate Significant SNPs
+```{r}
+  # TODO Use the excel sheets and your browser
+```
+
+# Regional Plots
+```{r}
+  # TODO Use the excel sheets and your browser
+```
