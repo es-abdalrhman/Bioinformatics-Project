@@ -1,7 +1,6 @@
 ---
 title: "Project"
 author: ""
-date: "2024-05-18"
 output: html_document
 ---
 # Contributors
